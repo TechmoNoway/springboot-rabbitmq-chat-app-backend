@@ -1,25 +1,7 @@
-#TOKEN
-ACCESS_TOKEN_PRIVATE_KEY_PATH: "access-refresh-token-keys/access-token-private.key"
-ACCESS_TOKEN_PUBLIC_KEY_PATH: "access-refresh-token-keys/access-token-public.key"
-REFRESH_TOKEN_PRIVATE_KEY_PATH: "access-refresh-token-keys/refresh-token-private.key"
-REFRESH_TOKEN_PUBLIC_KEY_PATH: "access-refresh-token-keys/refresh-token-public.key"
+spring:
+  jpa:
+    show-sql: false
 
-#SQL
-SPRING_DATASOURCE_URL: "jdbc:mysql://civic-mysql:3306/civicappdatabase?createDatabaseIfNotExist=true"
-SPRING_DATASOURCE_USERNAME: "root1"
-SPRING_DATASOURCE_PASSWORD: "332003"
-SPRING_DATASOURCE_DRIVER: "com.mysql.cj.jdbc.Driver"
-
-#RABBITMQ
-RABBITMQ_DEFAULT_USER: "guest"
-RABBITMQ_DEFAULT_PASS: "guest"
-
-BASE_PORT: 8081
-CLIENT_URL: "http://localhost:5173"
-
-#GOOGLE
-CLIENT_ID: "39476822030-m15g24ckmabv4h6dbfjb7ir5bu40ovgi.apps.googleusercontent.com"
-
-
-
-
+logging:
+  level:
+    com.lynqo.backend: DEBUG

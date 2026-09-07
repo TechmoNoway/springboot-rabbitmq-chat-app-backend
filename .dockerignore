@@ -1,0 +1,11 @@
+.git
+.gradle
+build
+bin
+.idea
+.vscode
+.env
+*.iml
+
+# Runtime secrets are mounted by Compose and must not enter the image layers.
+access-refresh-token-keys

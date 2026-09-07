@@ -1,61 +1,91 @@
-version: '3.8'
+name: lynqo
 
 services:
   mysql:
-    container_name: 'civic-mysql'
-    build:
-        context: .
-        dockerfile: Dockerfile
-        target: mysql
-    command: --default-authentication-plugin=caching_sha2_password
-    restart: always
+    image: mysql:8.4
+    container_name: lynqo-mysql
     environment:
-      MYSQL_DATABASE: 'civicappdatabase'
-      MYSQL_PASSWORD: '332003'
-      MYSQL_ROOT_PASSWORD: '332003'
-      MYSQL_USER: 'root1'
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-lynqo}
+      MYSQL_USER: ${MYSQL_USER:-lynqo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-lynqo}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-lynqo-root}
     ports:
-      - '3306:3306'
+      - "3306:3306"
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - lynqo-mysql-data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-lynqo-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   rabbitmq:
-    container_name: 'civic-rabbitmq'
     build:
       context: .
       dockerfile: Dockerfile
       target: rabbitmq
+    container_name: lynqo-rabbitmq
     environment:
-      - 'RABBITMQ_DEFAULT_USER=guest'
-      - 'RABBITMQ_DEFAULT_PASS=guest'
-      - 'RABBITMQ_STOMP_ENABLED=true'
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
     ports:
-      - '5672:5672'
-      - '15672:15672'
-      - '61613:61613'
-      - '15674:15674'
-    restart: unless-stopped
-  redis:
-    container_name: 'civic-redis'
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: redis
-    ports:
-      - '6379:6379'
-    restart: unless-stopped
-  spring-app:
-    container_name: 'spring-app'
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: springapp
-    ports:
-      - '8081:8081'
-    environment:
-      SPRING_RABBITMQ_HOST: 'civic-rabbitmq'
-    depends_on:
-      - rabbitmq
-      - mysql
-      - redis
+      - "5672:5672"
+      - "15672:15672"
+      - "61613:61613"
+      - "15674:15674"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: lynqo-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - lynqo-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: application
+    container_name: lynqo-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-lynqo}?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-lynqo}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-lynqo}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-guest}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-guest}
+      SPRING_DATA_REDIS_HOST: redis
+      LYNQO_STOMP_RELAY_HOST: rabbitmq
+      LYNQO_CLIENT_URL: ${LYNQO_CLIENT_URL:-http://localhost:5173}
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./access-refresh-token-keys:/app/access-refresh-token-keys:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  lynqo-mysql-data:
+  lynqo-redis-data:

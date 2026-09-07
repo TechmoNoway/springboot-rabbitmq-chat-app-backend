@@ -1,58 +1,47 @@
-# Civic Messager Backend
+# Lynqo Backend
 
-A Spring Boot backend for a real-time chat application using RabbitMQ, JWT authentication, and Redis caching. This project provides REST APIs and WebSocket endpoints for user authentication, messaging, and friend management.
+Backend for Lynqo, a real-time messaging application built with Spring Boot, RabbitMQ, Redis, and MySQL.
 
-## Features
-- User registration and login (including Google OAuth)
-- JWT-based authentication and refresh tokens
-- Real-time messaging with RabbitMQ
-- Friend request and management system
-- Redis caching for performance
-- RESTful APIs for chat, user, and friend operations
-- WebSocket support for live chat
+## Technology baseline
 
-## Technologies Used
-- Java 17+
-- Spring Boot
-- RabbitMQ
-- Redis
-- JWT
-- Gradle
-- Docker support
+- Java 26
+- Spring Boot 4.1.1
+- Gradle 9.7.1
+- MySQL 8.4
+- RabbitMQ 4.2 with STOMP and Web STOMP
+- Redis 7.4
 
-## Getting Started
+## Architecture
 
-### Prerequisites
-- Java 17 or higher
-- Gradle
-- RabbitMQ server
-- Redis server
+The codebase is organized by business feature rather than by technical layer:
 
-### Setup
-1. Clone the repository:
+```text
+com.lynqo.backend
+├── auth/          # login, registration, Google login, tokens
+├── friendship/    # friend relationships
+├── messaging/     # message persistence and real-time delivery
+├── presence/      # online/away/offline state in Redis
+├── user/          # profiles and user lookup
+└── shared/        # cross-cutting configuration and security
+```
+
+Each feature owns its API, DTOs, domain model, repositories, and services. Public REST paths remain under `/api/v1` for frontend compatibility.
+
+## Local development
+
+1. Copy `.env.example` to `.env` and change the development credentials.
+2. Start the full stack:
+
    ```bash
-   git clone <repo-url>
-   ```
-2. Configure environment variables in `src/main/resources/app.env` and application YAML files.
-3. Start RabbitMQ and Redis servers.
-4. Build and run the application:
-   ```bash
-   ./gradlew bootRun
-   ```
-5. (Optional) Use Docker Compose:
-   ```bash
-   docker compose up
+   docker compose up --build
    ```
 
-## API Endpoints
-- `/api/auth` - Authentication APIs
-- `/api/user` - User management APIs
-- `/api/friend` - Friend management APIs
-- `/api/message` - Messaging APIs
+The backend listens on `http://localhost:8081`. Swagger UI is available at `http://localhost:8081/swagger-ui.html`.
 
-## License
-MIT
+To run with locally installed infrastructure:
 
-## Author
-trickynguci
+```bash
+./gradlew bootRun
+```
 
+Gradle automatically provisions the Java 26 toolchain when it is not installed locally.

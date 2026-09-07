@@ -1,0 +1,10 @@
+spring:
+  jpa:
+    show-sql: false
+
+server:
+  forward-headers-strategy: native
+
+logging:
+  level:
+    com.lynqo.backend: INFO

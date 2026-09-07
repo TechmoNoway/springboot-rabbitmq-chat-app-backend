@@ -1,31 +1,42 @@
-access-token:
-  private: ${ACCESS_TOKEN_PRIVATE_KEY_PATH}
-  public: ${ACCESS_TOKEN_PUBLIC_KEY_PATH}
-refresh-token:
-  private: ${REFRESH_TOKEN_PRIVATE_KEY_PATH}
-  public: ${REFRESH_TOKEN_PUBLIC_KEY_PATH}
-
 spring:
+  application:
+    name: lynqo-backend
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER}
-#  sql:
-#    init:
-#      data-locations: classpath:data.sql
-#      schema-locations: classpath:schema.sql
-#      mode: always
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/lynqo?createDatabaseIfNotExist=true}
+    username: ${SPRING_DATASOURCE_USERNAME:lynqo}
+    password: ${SPRING_DATASOURCE_PASSWORD:lynqo}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     database: mysql
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
   rabbitmq:
-    stream:
-      password: ${RABBITMQ_DEFAULT_PASS}
-      username: ${RABBITMQ_DEFAULT_USER}
-      host: 'civic-rabbitmq'
-      port: 5672
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 springdoc:
   use-fqn: true
   swagger-ui:
@@ -33,15 +44,17 @@ springdoc:
     tags-sorter: alpha
     doc-expansion: none
     display-request-duration: true
-    show-extensions: true
-    show-common-extensions: true
-# GitHub
 
-# Google
+access-token:
+  private: ${ACCESS_TOKEN_PRIVATE_KEY_PATH:access-refresh-token-keys/access-token-private.key}
+  public: ${ACCESS_TOKEN_PUBLIC_KEY_PATH:access-refresh-token-keys/access-token-public.key}
+refresh-token:
+  private: ${REFRESH_TOKEN_PRIVATE_KEY_PATH:access-refresh-token-keys/refresh-token-private.key}
+  public: ${REFRESH_TOKEN_PUBLIC_KEY_PATH:access-refresh-token-keys/refresh-token-public.key}
 
-
-server:
-  port: ${BASE_PORT}
-client:
-  url: ${CLIENT_URL}
-
+lynqo:
+  client-url: ${LYNQO_CLIENT_URL:http://localhost:5173}
+  messaging:
+    relay:
+      host: ${LYNQO_STOMP_RELAY_HOST:${SPRING_RABBITMQ_HOST:localhost}}
+      port: ${LYNQO_STOMP_RELAY_PORT:61613}

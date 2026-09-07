@@ -1,4 +1,4 @@
-USE civicappdatabase;
+USE lynqo;
 
 CREATE TABLE IF NOT EXISTS role
 (

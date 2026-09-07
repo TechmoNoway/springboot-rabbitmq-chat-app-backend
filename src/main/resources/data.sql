@@ -1,4 +1,4 @@
-# USE civicappdatabase;
+# USE lynqo;
 #
 # -- Insert new roles
 # INSERT INTO role (name)
