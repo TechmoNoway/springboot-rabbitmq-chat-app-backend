@@ -29,6 +29,18 @@ Each feature owns its API, DTOs, domain model, repositories, and services. Publi
 
 ## Local development
 
+Common commands are available through the root `Makefile`:
+
+```bash
+make help
+make infra-up
+make run
+make test
+make build
+```
+
+Use `make logs SERVICE=rabbitmq` or another Compose service name to follow different service logs.
+
 1. Copy `.env.example` to `.env` and change the development credentials.
 2. Set `GOOGLE_CLIENT_ID` to the same OAuth client ID used by the frontend.
 3. Provide fresh RSA key pairs in `access-refresh-token-keys/`. Keys are mounted read-only into the production container and are intentionally ignored by Git.
