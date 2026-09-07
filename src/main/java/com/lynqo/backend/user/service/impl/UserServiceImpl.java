@@ -4,8 +4,8 @@ import com.lynqo.backend.user.dto.UpdateUserRequest;
 import com.lynqo.backend.user.dto.ChangePasswordRequest;
 import com.lynqo.backend.user.dto.UserFriendResponse;
 import com.lynqo.backend.user.dto.UserResponse;
+import com.lynqo.backend.user.dto.UserSummaryResponse;
 import com.lynqo.backend.user.domain.User;
-import com.lynqo.backend.messaging.repository.MessageRepository;
 import com.lynqo.backend.user.repository.UserRepository;
 import com.lynqo.backend.messaging.service.MessageService;
 import com.lynqo.backend.user.service.UserService;
@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,39 +24,22 @@ public class UserServiceImpl implements UserService {
     private final MessageService messageService;
 
     @Override
-    public List<UserResponse> getAllUsers() {
+    public List<UserSummaryResponse> getAllUsers() {
         return userRepository.findAll().stream()
-                .map(user -> UserResponse.builder()
-                        .id(user.getId())
-                        .username(user.getUsername())
-                        .email(user.getEmail())
-                        .avatarUrl(user.getAvatarUrl())
-                        .phoneNumber(user.getPhoneNumber())
-                        .birthdate(user.getBirthdate())
-                        .isActive(user.isActive())
-                        .isBlocked(user.isBlocked())
-                .build())
+                .map(this::toSummary)
                 .toList();
     }
 
     @Override
-    public User getUserById(int id) {
-        return userRepository.findById(id);
+    public UserResponse getUserById(int id) {
+        User user = userRepository.findById(id);
+        return toResponse(user);
     }
 
     @Override
-    public List<UserResponse> getUsersByUsername(String username) {
+    public List<UserSummaryResponse> getUsersByUsername(String username) {
         return userRepository.findByUsername(username).stream()
-                .map(user -> UserResponse.builder()
-                        .id(user.getId())
-                        .username(user.getUsername())
-                        .email(user.getEmail())
-                        .avatarUrl(user.getAvatarUrl())
-                        .phoneNumber(user.getPhoneNumber())
-                        .birthdate(user.getBirthdate())
-                        .isActive(user.isActive())
-                        .isBlocked(user.isBlocked())
-                        .build())
+                .map(this::toSummary)
                 .toList();
     }
 
@@ -94,12 +76,8 @@ public class UserServiceImpl implements UserService {
             UserFriendResponse response =  UserFriendResponse.builder()
                     .id(user.getId())
                     .username(user.getUsername())
-                    .email(user.getEmail())
                     .avatarUrl(user.getAvatarUrl())
-                    .phoneNumber(user.getPhoneNumber())
-                    .birthdate(user.getBirthdate())
                     .isActive(user.isActive())
-                    .isBlocked(user.isBlocked())
                     .lastMessage(messageService.getTheLatestMessage(userId, user.getId()))
                     .build();
             result.add(response);
@@ -110,23 +88,36 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserResponse> searchUserByString(String str) {
+    public List<UserSummaryResponse> searchUserByString(String str) {
         return userRepository.findAllByUsernameContaining(str).stream()
-                .map(user -> UserResponse.builder()
-                        .id(user.getId())
-                        .username(user.getUsername())
-                        .email(user.getEmail())
-                        .avatarUrl(user.getAvatarUrl())
-                        .phoneNumber(user.getPhoneNumber())
-                        .birthdate(user.getBirthdate())
-                        .isActive(user.isActive())
-                        .isBlocked(user.isBlocked())
-                        .build())
+                .map(this::toSummary)
                 .toList();
     }
 
     @Override
     public void changePassword(ChangePasswordRequest changePasswordRequest) {
 
+    }
+
+    private UserResponse toResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .avatarUrl(user.getAvatarUrl())
+                .phoneNumber(user.getPhoneNumber())
+                .birthdate(user.getBirthdate())
+                .isActive(user.isActive())
+                .isBlocked(user.isBlocked())
+                .build();
+    }
+
+    private UserSummaryResponse toSummary(User user) {
+        return UserSummaryResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .avatarUrl(user.getAvatarUrl())
+                .active(user.isActive())
+                .build();
     }
 }

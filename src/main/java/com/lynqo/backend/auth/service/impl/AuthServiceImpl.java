@@ -1,33 +1,38 @@
 package com.lynqo.backend.auth.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lynqo.backend.auth.security.TokenGenerator;
-import com.lynqo.backend.auth.dto.LoginRequest;
+import com.lynqo.backend.auth.domain.Token;
+import com.lynqo.backend.auth.domain.TokenType;
 import com.lynqo.backend.auth.dto.GoogleLoginRequest;
+import com.lynqo.backend.auth.dto.GoogleTokenInfoResponse;
+import com.lynqo.backend.auth.dto.GoogleUserInfoResponse;
+import com.lynqo.backend.auth.dto.LoginRequest;
 import com.lynqo.backend.auth.dto.SignupRequest;
 import com.lynqo.backend.auth.dto.TokenResponse;
-import com.lynqo.backend.auth.dto.GoogleUserInfoResponse;
-import com.lynqo.backend.auth.domain.Token;
-import com.lynqo.backend.user.domain.User;
 import com.lynqo.backend.auth.repository.TokenRepository;
-import com.lynqo.backend.user.repository.UserRepository;
+import com.lynqo.backend.auth.security.TokenGenerator;
 import com.lynqo.backend.auth.service.AuthService;
-import lombok.RequiredArgsConstructor;
+import com.lynqo.backend.user.domain.User;
+import com.lynqo.backend.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
-import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URL;
+import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.util.Collections;
-import java.util.Optional;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
     private final TokenRepository tokenRepository;
@@ -35,94 +40,179 @@ public class AuthServiceImpl implements AuthService {
     private final TokenGenerator tokenGenerator;
     private final DaoAuthenticationProvider daoAuthenticationProvider;
     private final UserRepository userRepository;
+    private final RestClient.Builder restClientBuilder;
 
-    public void saveUserToken(User user, String jwtToken) {
-        Token token = Token.builder()
-                .userId(user.getId())
-                .token(jwtToken)
-//                .tokenType(OAuth2AccessToken.TokenType.BEARER)
-                .expired(false)
-                .revoked(false)
-                .build();
-        tokenRepository.save(token);
+    @Qualifier("jwtRefreshTokenDecoder")
+    private final JwtDecoder refreshTokenDecoder;
+
+    @Value("${lynqo.security.google.client-id:}")
+    private String googleClientId;
+
+    public AuthServiceImpl(
+            TokenRepository tokenRepository,
+            UserManager userManager,
+            TokenGenerator tokenGenerator,
+            DaoAuthenticationProvider daoAuthenticationProvider,
+            UserRepository userRepository,
+            RestClient.Builder restClientBuilder,
+            @Qualifier("jwtRefreshTokenDecoder") JwtDecoder refreshTokenDecoder) {
+        this.tokenRepository = tokenRepository;
+        this.userManager = userManager;
+        this.tokenGenerator = tokenGenerator;
+        this.daoAuthenticationProvider = daoAuthenticationProvider;
+        this.userRepository = userRepository;
+        this.restClientBuilder = restClientBuilder;
+        this.refreshTokenDecoder = refreshTokenDecoder;
     }
 
-    public TokenResponse register(SignupRequest signupDTO) {
+    @Override
+    @Transactional
+    public TokenResponse register(SignupRequest request) {
         User user = User.builder()
-                .username(signupDTO.getUsername())
-                .password(signupDTO.getPassword())
-                .email(signupDTO.getEmail())
+                .username(request.getUsername())
+                .password(request.getPassword())
+                .email(request.getEmail())
                 .roleId(1)
                 .isActive(true)
                 .isBlocked(false)
                 .build();
         userManager.createUser(user);
-        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(user, signupDTO.getPassword(), Collections.emptyList());
-        TokenResponse tokenDTO = tokenGenerator.createToken(authentication);
-        saveUserToken(user, tokenDTO.getAccessToken());
-
-        return tokenDTO;
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                user, null, user.getAuthorities());
+        return rotateSession(user, authentication);
     }
 
     @Override
-    public TokenResponse login(LoginRequest loginDTO) {
-        Authentication authentication = daoAuthenticationProvider.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(loginDTO.getUsername(), loginDTO.getPassword()));
-
-        return tokenGenerator.createToken(authentication);
+    @Transactional
+    public TokenResponse login(LoginRequest request) {
+        Authentication authentication = daoAuthenticationProvider.authenticate(
+                UsernamePasswordAuthenticationToken.unauthenticated(request.getUsername(), request.getPassword()));
+        User user = (User) authentication.getPrincipal();
+        return rotateSession(user, authentication);
     }
 
     @Override
-    public TokenResponse loginWithGoogle(GoogleLoginRequest loginWithGoogleRequest) throws GeneralSecurityException, IOException {
-        String apiUrl = "https://www.googleapis.com/oauth2/v3/userinfo";
-
-        URL url = URI.create(apiUrl).toURL();
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("Authorization", "Bearer " + loginWithGoogleRequest.getAccessToken());
-
-        int responseCode = conn.getResponseCode();
-        if (responseCode == HttpURLConnection.HTTP_OK) {
-            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            String inputLine;
-            StringBuilder response = new StringBuilder();
-
-            while ((inputLine = in.readLine()) != null) {
-                response.append(inputLine);
-            }
-            in.close();
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            GoogleUserInfoResponse googleUserInfoResponse = objectMapper.readValue(response.toString(), GoogleUserInfoResponse.class);
-
-            String email = googleUserInfoResponse.getEmail();
-            String avatarUrl = googleUserInfoResponse.getPicture();
-            String name = googleUserInfoResponse.getName();
-
-            int index = email.indexOf('@');
-            if (!userRepository.existsByUsername(email.substring(0, index))) {
-                User user = User.builder()
-                        .username(email.substring(0, index))
-                        .password(email)
-                        .email(email)
-                        .avatarUrl(avatarUrl)
-                        .roleId(1)
-                        .isActive(true)
-                        .isBlocked(false)
-                        .build();
-                userManager.createUser(user);
-
-                Authentication registingAuthentication = UsernamePasswordAuthenticationToken.authenticated(user, user.getPassword(), Collections.emptyList());
-                TokenResponse tokenDTO = tokenGenerator.createToken(registingAuthentication);
-
-                Authentication loginAuthentication = daoAuthenticationProvider.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email.substring(0, index), email));
-                return tokenGenerator.createToken(loginAuthentication);
-            } else {
-                Optional<User> user = userRepository.findByUsername(email.substring(0, index));
-                Authentication loginAuthentication = daoAuthenticationProvider.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email.substring(0, index), user.get().getEmail()));
-                return tokenGenerator.createToken(loginAuthentication);
-            }
-        } else {
-            return null;
+    @Transactional
+    public TokenResponse loginWithGoogle(GoogleLoginRequest request)
+            throws GeneralSecurityException, IOException {
+        if (googleClientId == null || googleClientId.isBlank()) {
+            throw new BadCredentialsException("Google OAuth client ID is not configured");
         }
+
+        GoogleTokenInfoResponse tokenInfo;
+        GoogleUserInfoResponse userInfo;
+        try {
+            RestClient client = restClientBuilder.build();
+            tokenInfo = client.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .scheme("https")
+                            .host("oauth2.googleapis.com")
+                            .path("/tokeninfo")
+                            .queryParam("access_token", request.getAccessToken())
+                            .build())
+                    .retrieve()
+                    .body(GoogleTokenInfoResponse.class);
+            userInfo = client.get()
+                    .uri("https://www.googleapis.com/oauth2/v3/userinfo")
+                    .header("Authorization", "Bearer " + request.getAccessToken())
+                    .retrieve()
+                    .body(GoogleUserInfoResponse.class);
+        } catch (RestClientException exception) {
+            throw new BadCredentialsException("Google access token is invalid", exception);
+        }
+
+        validateGoogleIdentity(tokenInfo, userInfo);
+        String email = userInfo.getEmail().toLowerCase(Locale.ROOT);
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseGet(() -> createGoogleUser(email, userInfo.getPicture()));
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                user, null, user.getAuthorities());
+        return rotateSession(user, authentication);
+    }
+
+    @Override
+    @Transactional
+    public TokenResponse refresh(String refreshToken) {
+        Jwt jwt = refreshTokenDecoder.decode(refreshToken);
+        User user = userRepository.findById(Integer.parseInt(jwt.getSubject()));
+        if (user == null || user.isBlocked() || !user.isActive()) {
+            throw new BadCredentialsException("User is not allowed to authenticate");
+        }
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                user, jwt, user.getAuthorities());
+        return rotateSession(user, authentication);
+    }
+
+    @Override
+    @Transactional
+    public void logout(int userId) {
+        revokeSessions(userId);
+    }
+
+    private TokenResponse rotateSession(User user, Authentication authentication) {
+        revokeSessions(user.getId());
+        TokenResponse response = tokenGenerator.createToken(authentication);
+        tokenRepository.saveAll(List.of(
+                newToken(response.getAccessTokenId(), TokenType.ACCESS, user.getId()),
+                newToken(response.getRefreshTokenId(), TokenType.REFRESH, user.getId())
+        ));
+        return response;
+    }
+
+    private Token newToken(String tokenId, TokenType type, int userId) {
+        return Token.builder()
+                .token(tokenId)
+                .tokenType(type)
+                .userId(userId)
+                .expired(false)
+                .revoked(false)
+                .build();
+    }
+
+    private void revokeSessions(int userId) {
+        List<Token> activeTokens = tokenRepository.findAllByUserIdAndRevokedFalse(userId);
+        activeTokens.forEach(token -> {
+            token.setRevoked(true);
+            token.setExpired(true);
+        });
+        tokenRepository.saveAll(activeTokens);
+    }
+
+    private void validateGoogleIdentity(GoogleTokenInfoResponse tokenInfo, GoogleUserInfoResponse userInfo) {
+        boolean valid = tokenInfo != null
+                && userInfo != null
+                && googleClientId.equals(tokenInfo.getAud())
+                && Boolean.TRUE.equals(tokenInfo.getEmailVerified())
+                && tokenInfo.getExpiresIn() != null
+                && tokenInfo.getExpiresIn() > 0
+                && userInfo.getEmail() != null
+                && userInfo.getEmail().equalsIgnoreCase(tokenInfo.getEmail())
+                && Boolean.TRUE.equals(userInfo.getEmail_verified());
+        if (!valid) {
+            throw new BadCredentialsException("Google identity could not be verified");
+        }
+    }
+
+    private User createGoogleUser(String email, String avatarUrl) {
+        String baseUsername = email.substring(0, email.indexOf('@'))
+                .replaceAll("[^A-Za-z0-9._-]", "");
+        if (baseUsername.isBlank()) {
+            baseUsername = "user";
+        }
+        String username = baseUsername;
+        while (userRepository.existsByUsername(username)) {
+            username = baseUsername + "-" + UUID.randomUUID().toString().substring(0, 8);
+        }
+        User user = User.builder()
+                .username(username)
+                .password(UUID.randomUUID() + "-" + UUID.randomUUID())
+                .email(email)
+                .avatarUrl(avatarUrl)
+                .roleId(1)
+                .isActive(true)
+                .isBlocked(false)
+                .build();
+        userManager.createUser(user);
+        return user;
     }
 }

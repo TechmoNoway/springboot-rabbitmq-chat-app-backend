@@ -2,10 +2,12 @@ package com.lynqo.backend.user.api;
 
 import com.lynqo.backend.user.dto.UpdateUserRequest;
 import com.lynqo.backend.user.service.UserService;
+import com.lynqo.backend.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -37,13 +39,14 @@ public class UserController {
     }
 
     @GetMapping("/getUserById")
-    public ResponseEntity<?> doGetUserById(@RequestParam("id") int id) {
+    public ResponseEntity<?> doGetUserById(@RequestParam("id") int ignoredId,
+                                           @AuthenticationPrincipal User currentUser) {
         HashMap<String, Object> result = new HashMap<>();
         try {
             result.put("success", true);
             result.put("message", "Call api getUserById successfully");
             result.put("status", HttpStatus.OK.value());
-            result.put("data", userService.getUserById(id));
+            result.put("data", userService.getUserById(currentUser.getId()));
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);
@@ -75,9 +78,11 @@ public class UserController {
     }
 
     @PutMapping("/updateUser")
-    public ResponseEntity<?> doUpdateUser(@RequestBody UpdateUserRequest updateUserDTO) {
+    public ResponseEntity<?> doUpdateUser(@RequestBody UpdateUserRequest updateUserDTO,
+                                          @AuthenticationPrincipal User currentUser) {
         HashMap<String, Object> result = new HashMap<>();
         try {
+            updateUserDTO.setUserId(currentUser.getId());
             result.put("success", true);
             result.put("message", "Call api doUpdateUser successfully");
             result.put("status", HttpStatus.OK.value());
@@ -94,12 +99,13 @@ public class UserController {
     }
 
     @GetMapping("/getFriendsAndLatestMessage")
-    public ResponseEntity<?> doGetFriendsAndLatestMessage(@RequestParam("userId") int userId) {
+    public ResponseEntity<?> doGetFriendsAndLatestMessage(@RequestParam("userId") int ignoredUserId,
+                                                          @AuthenticationPrincipal User currentUser) {
         HashMap<String, Object> result = new HashMap<>();
         try {
             result.put("success", true);
             result.put("message", "Call api doGetFriendsAndLatestMessage successfully");
-            result.put("data", userService.getAllUserFriendsAndLatestMessage(userId));
+            result.put("data", userService.getAllUserFriendsAndLatestMessage(currentUser.getId()));
             return ResponseEntity.status(HttpStatus.OK).body(result);
         } catch (Exception e) {
             result.put("success", false);

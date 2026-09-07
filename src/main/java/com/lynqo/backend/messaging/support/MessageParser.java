@@ -1,7 +1,7 @@
 package com.lynqo.backend.messaging.support;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 public class MessageParser {
 
@@ -10,7 +10,7 @@ public class MessageParser {
     public static String parseTargetUserFromPayload(String payload) {
         try {
             JsonNode rootNode = objectMapper.readTree(payload);
-            return rootNode.get("to").asText();
+            return rootNode.get("to").asString();
         } catch (Exception e) {
             e.printStackTrace();
             return null;

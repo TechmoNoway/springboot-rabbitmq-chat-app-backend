@@ -73,6 +73,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       LYNQO_STOMP_RELAY_HOST: rabbitmq
       LYNQO_CLIENT_URL: ${LYNQO_CLIENT_URL:-http://localhost:5173}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
       - "8081:8081"
     volumes:

@@ -4,15 +4,11 @@ import com.lynqo.backend.auth.dto.LoginRequest;
 import com.lynqo.backend.auth.dto.GoogleLoginRequest;
 import com.lynqo.backend.auth.dto.SignupRequest;
 import com.lynqo.backend.auth.dto.TokenResponse;
-import com.lynqo.backend.auth.dto.GoogleLoginResponse;
-import com.lynqo.backend.user.domain.User;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 
 public interface AuthService {
-
-    void saveUserToken(User user, String jwtToken);
 
     TokenResponse register(SignupRequest signupDTO);
 
@@ -20,5 +16,7 @@ public interface AuthService {
 
     TokenResponse loginWithGoogle(GoogleLoginRequest loginWithGoogleRequest) throws GeneralSecurityException, IOException;
 
+    TokenResponse refresh(String refreshToken);
 
+    void logout(int userId);
 }

@@ -54,6 +54,9 @@ refresh-token:
 
 lynqo:
   client-url: ${LYNQO_CLIENT_URL:http://localhost:5173}
+  security:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
   messaging:
     relay:
       host: ${LYNQO_STOMP_RELAY_HOST:${SPRING_RABBITMQ_HOST:localhost}}

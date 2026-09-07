@@ -16,7 +16,7 @@ public interface MessageService {
 
     MessageResponse getTheLatestMessage(int user1Id, int user2Id);
 
-    void saveMessage(MessageRequest messageRequest);
+    void saveMessage(MessageRequest messageRequest, int authenticatedUserId);
 
-    void deleteMessage(int messageId);
+    void deleteMessage(int messageId, int authenticatedUserId);
 }

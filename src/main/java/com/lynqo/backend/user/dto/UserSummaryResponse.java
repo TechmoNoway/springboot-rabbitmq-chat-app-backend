@@ -1,15 +1,13 @@
 package com.lynqo.backend.user.dto;
 
-import com.lynqo.backend.messaging.dto.MessageResponse;
 import lombok.Builder;
 import lombok.Data;
 
 @Data
 @Builder
-public class UserFriendResponse {
+public class UserSummaryResponse {
     private int id;
     private String username;
     private String avatarUrl;
-    private boolean isActive;
-    private MessageResponse lastMessage;
+    private boolean active;
 }

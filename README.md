@@ -30,7 +30,9 @@ Each feature owns its API, DTOs, domain model, repositories, and services. Publi
 ## Local development
 
 1. Copy `.env.example` to `.env` and change the development credentials.
-2. Start the full stack:
+2. Set `GOOGLE_CLIENT_ID` to the same OAuth client ID used by the frontend.
+3. Provide fresh RSA key pairs in `access-refresh-token-keys/`. Keys are mounted read-only into the production container and are intentionally ignored by Git.
+4. Start the full stack:
 
    ```bash
    docker compose up --build
@@ -45,3 +47,13 @@ To run with locally installed infrastructure:
 ```
 
 Gradle automatically provisions the Java 26 toolchain when it is not installed locally.
+
+## Authentication security
+
+- Only registration, login, Google login, token refresh, API documentation, and health checks are public.
+- Access tokens expire after 15 minutes; refresh tokens expire after 30 days.
+- Refreshing rotates both tokens and revokes the previous session. `POST /api/v1/auth/logout` revokes the active user's tokens.
+- JWT records store only random token IDs, not reusable bearer token values.
+- Google access tokens are checked against `GOOGLE_CLIENT_ID`, expiration, and verified email before a local session is created.
+
+For an existing database, run `docs/p0-security-migration.sql` once before deploying this version. The migration invalidates legacy sessions because old bearer-token rows and previously committed RSA keys are no longer trusted.

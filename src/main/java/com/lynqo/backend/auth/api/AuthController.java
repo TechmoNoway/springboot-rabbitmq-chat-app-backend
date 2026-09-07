@@ -1,20 +1,17 @@
 package com.lynqo.backend.auth.api;
 
-import com.lynqo.backend.auth.security.TokenGenerator;
 import com.lynqo.backend.auth.dto.LoginRequest;
 import com.lynqo.backend.auth.dto.GoogleLoginRequest;
 import com.lynqo.backend.auth.dto.SignupRequest;
 import com.lynqo.backend.auth.dto.TokenResponse;
 import com.lynqo.backend.auth.service.AuthService;
 import com.lynqo.backend.user.service.UserService;
+import com.lynqo.backend.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -25,14 +22,9 @@ import java.util.HashMap;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private final TokenGenerator tokenGenerator;
-
     private final AuthService authService;
 
     private final UserService userService;
-
-    @Qualifier("jwtRefreshTokenAuthProvider")
-    private final JwtAuthenticationProvider refreshTokenAuthProvider;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody SignupRequest signupDTO) {
@@ -42,7 +34,7 @@ public class AuthController {
             result.put("success", false);
             result.put("message", "Username existed");
             result.put("data", "username-exists");
-            return ResponseEntity.ok(result);
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(result);
         } else  {
             try {
                 result.put("success", true);
@@ -56,7 +48,7 @@ public class AuthController {
                 result.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
                 result.put("data", null);
                 log.error("error: ", e);
-                return ResponseEntity.ok(result);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
             }
         }
     }
@@ -76,14 +68,18 @@ public class AuthController {
             result.put("status", HttpStatus.UNAUTHORIZED.value());
             result.put("data", null);
             log.error("error: ", e);
-            return ResponseEntity.ok(result);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(result);
         }
     }
 
     @PostMapping("/token")
     public ResponseEntity<?> token(@RequestBody TokenResponse tokenDTO) {
-        Authentication authentication = refreshTokenAuthProvider.authenticate(new BearerTokenAuthenticationToken(tokenDTO.getRefreshToken()));
-        return ResponseEntity.ok(tokenGenerator.createToken(authentication));
+        try {
+            return ResponseEntity.ok(authService.refresh(tokenDTO.getRefreshToken()));
+        } catch (Exception exception) {
+            log.warn("Refresh token rejected", exception);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 
     @PostMapping("/loginWithGoogle")
@@ -101,8 +97,14 @@ public class AuthController {
             result.put("status", HttpStatus.UNAUTHORIZED.value());
             result.put("data", null);
             log.error("error: ", e);
-            return ResponseEntity.ok(result);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(result);
         }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@AuthenticationPrincipal User currentUser) {
+        authService.logout(currentUser.getId());
+        return ResponseEntity.noContent().build();
     }
 
 }

@@ -28,11 +28,11 @@ CREATE TABLE IF NOT EXISTS user
 CREATE TABLE IF NOT EXISTS token
 (
     id      BIGINT PRIMARY KEY AUTO_INCREMENT,
-    token   LONGTEXT NULL,
-    token_type VARCHAR(255) NULL,
-    revoked TINYINT(1)  NULL,
-    expired TINYINT(1)  NULL,
-    user_id INT      NULL,
+    token   VARCHAR(36) NOT NULL UNIQUE,
+    token_type VARCHAR(16) NOT NULL,
+    revoked TINYINT(1) NOT NULL DEFAULT 0,
+    expired TINYINT(1) NOT NULL DEFAULT 0,
+    user_id INT NOT NULL,
     FOREIGN KEY (user_id)
         REFERENCES user (id)
 );

@@ -8,6 +8,9 @@ import com.lynqo.backend.user.repository.UserRepository;
 import com.lynqo.backend.messaging.service.MessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
+
+import jakarta.persistence.EntityNotFoundException;
 
 import java.util.Comparator;
 import java.util.List;
@@ -64,10 +67,10 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public void saveMessage(MessageRequest messageRequest) {
+    public void saveMessage(MessageRequest messageRequest, int authenticatedUserId) {
 
         Message message = Message.builder()
-                .sender(userRepository.findById(messageRequest.getSenderId()))
+                .sender(userRepository.findById(authenticatedUserId))
                 .receiver(userRepository.findById(messageRequest.getReceiverId()))
                 .content(messageRequest.getContent())
                 .status(messageRequest.getStatus())
@@ -79,8 +82,13 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public void deleteMessage(int messageId) {
-        messageRepository.deleteById(messageId);
+    public void deleteMessage(int messageId, int authenticatedUserId) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new EntityNotFoundException("Message not found"));
+        if (message.getSender().getId() != authenticatedUserId) {
+            throw new AccessDeniedException("Only the sender can delete a message");
+        }
+        messageRepository.delete(message);
     }
 
 }

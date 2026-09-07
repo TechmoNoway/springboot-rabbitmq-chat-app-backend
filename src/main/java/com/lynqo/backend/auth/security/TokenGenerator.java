@@ -2,55 +2,72 @@ package com.lynqo.backend.auth.security;
 
 import com.lynqo.backend.auth.dto.TokenResponse;
 import com.lynqo.backend.user.domain.User;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 public class TokenGenerator {
 
-    private final JwtEncoder accessTokenEncoder;
+    public static final String TOKEN_TYPE_CLAIM = "token_type";
+    public static final String ACCESS_TOKEN_TYPE = "access";
+    public static final String REFRESH_TOKEN_TYPE = "refresh";
 
-    private final JwtDecoder accessTokenDecoder;
+    private final JwtEncoder accessTokenEncoder;
 
     @Qualifier("jwtRefreshTokenEncoder")
     private final JwtEncoder refreshTokenEncoder;
 
-    private String createAccessToken(Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
-        Instant now = Instant.now();
-
-        JwtClaimsSet claimsSet = JwtClaimsSet.builder()
-                .issuer("myApp")
-                .issuedAt(now)
-                .expiresAt(now.plus(1, ChronoUnit.DAYS))
-                .subject(String.valueOf(user.getId()))
-                .build();
-
-        return accessTokenEncoder.encode(JwtEncoderParameters.from(claimsSet)).getTokenValue();
+    public TokenGenerator(
+            JwtEncoder accessTokenEncoder,
+            @Qualifier("jwtRefreshTokenEncoder") JwtEncoder refreshTokenEncoder) {
+        this.accessTokenEncoder = accessTokenEncoder;
+        this.refreshTokenEncoder = refreshTokenEncoder;
     }
 
-    private String createRefreshToken(Authentication authentication) {
+    private GeneratedToken createAccessToken(Authentication authentication) {
         User user = (User) authentication.getPrincipal();
         Instant now = Instant.now();
+        String tokenId = UUID.randomUUID().toString();
 
         JwtClaimsSet claimsSet = JwtClaimsSet.builder()
-                .issuer("myApp")
+                .issuer("lynqo")
+                .issuedAt(now)
+                .expiresAt(now.plus(15, ChronoUnit.MINUTES))
+                .subject(String.valueOf(user.getId()))
+                .id(tokenId)
+                .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
+                .build();
+
+        String value = accessTokenEncoder.encode(JwtEncoderParameters.from(claimsSet)).getTokenValue();
+        return new GeneratedToken(value, tokenId);
+    }
+
+    private GeneratedToken createRefreshToken(Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        Instant now = Instant.now();
+        String tokenId = UUID.randomUUID().toString();
+
+        JwtClaimsSet claimsSet = JwtClaimsSet.builder()
+                .issuer("lynqo")
                 .issuedAt(now)
                 .expiresAt(now.plus(30, ChronoUnit.DAYS))
                 .subject(String.valueOf(user.getId()))
+                .id(tokenId)
+                .claim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE)
                 .build();
 
-        return refreshTokenEncoder.encode(JwtEncoderParameters.from(claimsSet)).getTokenValue();
+        String value = refreshTokenEncoder.encode(JwtEncoderParameters.from(claimsSet)).getTokenValue();
+        return new GeneratedToken(value, tokenId);
     }
 
     public TokenResponse createToken(Authentication authentication) {
@@ -62,25 +79,17 @@ public class TokenGenerator {
 
         TokenResponse tokenDTO = new TokenResponse();
         tokenDTO.setUserId(String.valueOf(user.getId()));
-        tokenDTO.setAccessToken(createAccessToken(authentication));
-
-        String refreshToken;
-        if (authentication.getCredentials() instanceof Jwt jwt) {
-            Instant now = Instant.now();
-            Instant expiresAt = jwt.getExpiresAt();
-            Duration duration = Duration.between(now, expiresAt);
-            long daysUntilExpired = duration.toDays();
-            if (daysUntilExpired < 7) {
-                refreshToken = createRefreshToken(authentication);
-            } else {
-                refreshToken = jwt.getTokenValue();
-            }
-        } else {
-            refreshToken = createRefreshToken(authentication);
-        }
-        tokenDTO.setRefreshToken(refreshToken);
+        GeneratedToken accessToken = createAccessToken(authentication);
+        GeneratedToken refreshToken = createRefreshToken(authentication);
+        tokenDTO.setAccessToken(accessToken.value());
+        tokenDTO.setAccessTokenId(accessToken.id());
+        tokenDTO.setRefreshToken(refreshToken.value());
+        tokenDTO.setRefreshTokenId(refreshToken.id());
 
         return tokenDTO;
+    }
+
+    private record GeneratedToken(String value, String id) {
     }
 
 }

@@ -1,5 +1,7 @@
 HELP.md
 .env
+/access-refresh-token-keys/
+/access-token.private
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar

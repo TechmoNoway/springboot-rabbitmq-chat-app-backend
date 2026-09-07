@@ -11,6 +11,6 @@ public class GoogleUserInfoResponse {
     String family_name;
     String picture;
     String email;
-    String email_verified;
+    Boolean email_verified;
     String hd;
 }
